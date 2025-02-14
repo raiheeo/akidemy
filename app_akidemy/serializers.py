@@ -1,214 +1,282 @@
 from rest_framework import serializers
-from .models import (
-    UserProfile, Teacher, Student, Network, Category, Course, Lesson,
-    Assignment, Exam, Question, Option, Certificate, CourseReview,
-    TeacherRating, History, Cart, CartItem, Favorite, FavoriteItem
-)
+from .models import *
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ('username', 'email', 'password')
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        user = UserProfile.objects.create_user(**validated_data)
+        return user
+
+    def to_representation(self, instance):
+        refresh = RefreshToken.for_user(instance)
+        return {
+            'user': {
+                'username': instance.username,
+                'email': instance.email,
+            },
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        }
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        user = authenticate(**data)
+        if user and user.is_active:
+            return user
+        raise serializers.ValidationError("Неверные учетные данные")
+
+    def to_representation(self, instance):
+        refresh = RefreshToken.for_user(instance)
+        return {
+            'user': {
+                'username': instance.username,
+                'email': instance.email,
+            },
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        }
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = [
-            'id', 'username', 'profile_picture', 'phone_number', 'email', 'age',
-            'first_name', 'last_name', 'date_joined', 'last_login'
-        ]
+        fields = '__all__'
 
-class UserSimpleSerializer(serializers.ModelSerializer):
+
+class UserProfileCourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
         fields = ['first_name', 'last_name']
 
 
-class TeacherListSerializer(serializers.ModelSerializer):
-    role = serializers.CharField(source='get_role_display')
+class NetworkSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Teacher
-        fields = [
-            'profile_picture',
-            'first_name', 'last_name', 'subjects',
-            'experience'
-        ]
+        model = Network
+        fields = '__all__'
 
-class TeacherDetailSerializer(serializers.ModelSerializer):
-    role = serializers.CharField(source='get_role_display')
+
+class TeacherSerializer(serializers.ModelSerializer):
     class Meta:
         model = Teacher
-        fields = [
-            'id', 'username', 'profile_picture', 'phone_number', 'email', 'age',
-            'first_name', 'last_name', 'bio', 'work_days', 'subjects',
-            'experience', 'role'
-        ]
+        fields = '__all__'
+
 
 class StudentSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
     class Meta:
         model = Student
-        fields = ['id', 'user', 'role']
-
-class StudentDetailSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
-    class Meta:
-        model = UserProfile
-        fields = [
-            'id', 'username', 'profile_picture', 'phone_number', 'email', 'age',
-            'first_name', 'last_name', 'date_joined', 'last_login'
-        ]
-
-class CourseDetailSerializer(serializers.ModelSerializer):
-    category = serializers.StringRelatedField(many=True)
-    author = serializers.StringRelatedField(many=True)
-    teacher = TeacherDetailSerializer(many=True)
-    class Meta:
-        model = Course
-        fields = [
-            'id', 'category', 'course_name', 'course_description', 'author',
-            'level', 'price', 'course_type', 'created_at', 'updated_at'
-        ]
-
-class CourseListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Course
-        fields = [
-            'course_name',
-            'level', 'price',
-            'course_type',
-        ]
-
-class CategoryDetailSerializer(serializers.ModelSerializer):
-    course = CourseListSerializer(many=True, read_only=True)
-    class Meta:
-        model = Category
-        fields = ['id', 'category_name', 'course_name']
+        fields = '__all__'
 
 
 class CategoryListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['category_name', ]
+        fields = ['id', 'category_name']
 
 
-class LessonListSerializer(serializers.ModelSerializer):
-    course = serializers.StringRelatedField()
+class CategoryCourseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['category_name']
 
+
+class LessonSerializer(serializers.ModelSerializer):
     class Meta:
         model = Lesson
-        fields = ['title',  'course']
-
-
-class LessonDetailSerializer(serializers.ModelSerializer):
-    course = serializers.StringRelatedField()
-
-    class Meta:
-        model = Lesson
-        fields = ['id', 'title', 'video_url', 'video', 'content', 'course']
+        fields = ['title', 'video_url', 'video', 'content']
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    course = serializers.StringRelatedField()
-    students = serializers.StringRelatedField()
+    due_date = serializers.DateField(format='%d-%m-%Y')
 
     class Meta:
         model = Assignment
-        fields = ['id', 'title', 'description', 'due_date', 'course', 'students']
-
-
-class ExamSerializer(serializers.ModelSerializer):
-    course = serializers.StringRelatedField()
-
-    class Meta:
-        model = Exam
-        fields = ['id', 'title', 'course', 'end_time']
-
-
-class QuestionsSerializer(serializers.ModelSerializer):
-    exam = serializers.StringRelatedField()
-
-    class Meta:
-        model = Question
-        fields = ['id', 'exam', 'title', 'score']
-
-
-class OptionSerializer(serializers.ModelSerializer):
-    questions = serializers.StringRelatedField()
-
-    class Meta:
-        model = Option
-        fields = ['id', 'questions', 'variant', 'check']
+        fields = ['title', 'description', 'due_date']
 
 
 class CertificateSerializer(serializers.ModelSerializer):
-    student = serializers.StringRelatedField()
-    course = serializers.StringRelatedField()
 
     class Meta:
         model = Certificate
-        fields = ['id', 'student', 'course', 'issued_at', 'certificate_url']
+        fields = ['certificate_url',]
+
+
+class ReviewStudentInfoSerializer(serializers.ModelSerializer):
+    user = UserProfileCourseSerializer()
+
+    class Meta:
+        model = Student
+        fields=  ['user']
 
 
 class CourseReviewSerializer(serializers.ModelSerializer):
-    course = serializers.StringRelatedField()
-    user = serializers.StringRelatedField()
+    user = ReviewStudentInfoSerializer()
 
     class Meta:
         model = CourseReview
-        fields = ['id', 'course', 'user', 'text', 'stats']
+        fields = ['id', 'text', 'stars', 'user']
+
+
+class CourseCartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course
+        fields = ['course_name']
+
+
+class CourseListSerializer(serializers.ModelSerializer):
+    author = UserProfileCourseSerializer(many=True)
+    avg_rating = serializers.SerializerMethodField()
+    count_people = serializers.SerializerMethodField()
+    get_change_price = serializers.SerializerMethodField()
+    count_lesson = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Course
+        fields = ['id', 'course_name', 'course_image', 'level', 'type_course',
+                  'price', 'get_change_price', 'old_price', 'author', 'avg_rating', 'count_people', 'count_lesson']
+
+    def get_avg_rating(self, obj):
+        return obj.get_avg_rating()
+
+    def get_count_people(self, obj):
+        return obj.get_count_people()
+
+    def get_change_price(self, obj):
+        return obj.get_change_price()
+
+    def get_count_lesson(self, obj):
+        return obj.get_count_lesson()
+
+class CourseDetailSerializer(serializers.ModelSerializer):
+    author = UserProfileCourseSerializer(many=True)
+    category = CategoryCourseSerializer(many=True)
+    avg_rating = serializers.SerializerMethodField()
+    count_people = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(format='%d-%m-%Y %H:%M')
+    updated_ap = serializers.DateTimeField(format='%d-%m-%Y %H:%M')
+    course_lesson = LessonSerializer(many=True, read_only=True)
+    course_assignment = AssignmentSerializer(many=True, read_only=True)
+    certificate_course = CertificateSerializer(many=True, read_only=True)
+    course_review = CourseReviewSerializer(many=True, read_only=True)
+
+
+    class Meta:
+        model = Course
+        fields = ['course_name', 'description', 'category', 'course_image', 'author', 'level', 'price', 'course_certificate',
+                  'created_at', 'updated_ap',  'avg_rating', 'count_people', 'course_lesson',
+                  'course_assignment', 'certificate_course', 'course_review']
+
+    def get_avg_rating(self, obj):
+        return obj.get_avg_rating()
+
+    def get_count_people(self, obj):
+        return obj.get_count_people()
+
+
+class CategoryDetailSerializer(serializers.ModelSerializer):
+    category_course = CourseListSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Category
+        fields = ['category_name', 'category_course']
+
+
+class ExamListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exam
+        fields = ['id', 'title', 'end_time']
+
+
+class OptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Option
+        fields = ['variants', 'option_check']
+
+
+class QuestionsSerializer(serializers.ModelSerializer):
+    question_option = OptionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Question
+        fields = ['title', 'score', 'question_option']
+
+
+class ExamDetailSerializer(serializers.ModelSerializer):
+    exam_questions = QuestionsSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Exam
+        fields = ['title', 'exam_questions']
+
 
 
 class TeacherRatingSerializer(serializers.ModelSerializer):
-    teacher = serializers.StringRelatedField()
-    user = serializers.StringRelatedField()
-
     class Meta:
         model = TeacherRating
-        fields = ['id', 'teacher', 'user', 'stars']
+        fields = '__all__'
 
 
 class HistorySerializer(serializers.ModelSerializer):
-    student = serializers.StringRelatedField()
-    course = serializers.StringRelatedField()
+    student = ReviewStudentInfoSerializer()
+    course = CourseCartSerializer()
+    date = serializers.DateTimeField(format('%d-%B-%Y %H:%M'))
 
     class Meta:
         model = History
         fields = ['id', 'student', 'course', 'date']
 
 
-class CartSerializer(serializers.ModelSerializer):
-    student = serializers.StringRelatedField()
-
-    class Meta:
-        model = Cart
-        fields = ['id', 'student']
-
-
 class CartItemSerializer(serializers.ModelSerializer):
-    cart = serializers.StringRelatedField()
-    course = serializers.StringRelatedField()
+    course = CourseCartSerializer(read_only=True)
+    course_id = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all(), write_only=True, source='course')
+
 
     class Meta:
         model = CartItem
-        fields = ['id', 'cart', 'course']
+        fields = ['id', 'course', 'course_id', 'get_total_price']
 
 
-class FavoriteSerializer(serializers.ModelSerializer):
-    student = serializers.StringRelatedField()
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True, read_only=True)
+    get_total_price = serializers.SerializerMethodField()
+    student = ReviewStudentInfoSerializer()
 
     class Meta:
-        model = Favorite
-        fields = ['id', 'student']
+        model = Cart
+        fields = ['id', 'items', 'student', 'get_total_price']
+
+    def get_total_price(self, obj):
+        return obj.get_total_price()
 
 
 class FavoriteItemSerializer(serializers.ModelSerializer):
-    cart = serializers.StringRelatedField()
-    course = serializers.StringRelatedField()
+    course = CourseCartSerializer(read_only=True)
+    course_id = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all(), write_only=True, source='course')
+
 
     class Meta:
         model = FavoriteItem
-        fields = ['id', 'cart', 'course']
+        fields = ['id', 'course', 'course_id']
 
 
-class NetworkSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField()
+class FavoriteSerializer(serializers.ModelSerializer):
+    favorite_items = FavoriteItemSerializer(many=True, read_only=True)
+    get_favorite_item = serializers.SerializerMethodField()
+    student = ReviewStudentInfoSerializer()
+
     class Meta:
-        model = Network
-        fields = ['id', 'network_name', 'network_link', 'title', 'user']
+        model = Favorite
+        fields = ['id', 'student', 'favorite_items', 'get_favorite_item']
+
+    def get_favorite_item(self, obj):
+        return obj.get_favorite_item()

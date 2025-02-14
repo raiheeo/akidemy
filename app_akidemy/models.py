@@ -188,21 +188,45 @@ class History(models.Model):
 
     def __str__(self):
         return f'{self.student.user.first_name} - {self.course.course_name}'
-
+    
 
 class Cart(models.Model):
-    student = models.OneToOneField(Student, on_delete=models.CASCADE)
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, related_name='student_cart')
+
+    def __str__(self):
+        return f'{self.student}'
+
+    def get_total_price(self):
+        return sum(item.get_total_price() for item in self.items.all())
 
 
 class CartItem(models.Model):
-    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.cart} - {self.course}'
+
+    def get_total_price(self):
+        return self.course.price
 
 
 class Favorite(models.Model):
     student = models.OneToOneField(Student, on_delete=models.CASCADE)
 
+    def __str__(self):
+        return f'{self.student}'
+
+    def get_favorite_item(self):
+        return (item.get_favorite_item() for item in self.favorite_items.all())
+
 
 class FavoriteItem(models.Model):
-    favorite = models.ForeignKey(Favorite, on_delete=models.CASCADE)
+    favorite = models.ForeignKey(Favorite, on_delete=models.CASCADE, related_name='favorite_items')
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.favorite}, {self.course}'
+
+    def get_favorite_item(self):
+        return self.course.course_name
